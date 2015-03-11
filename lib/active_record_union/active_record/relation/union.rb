@@ -1,7 +1,35 @@
 module ActiveRecord
   class Relation
     module Union
-      def union(relation_or_where_arg,separated = false,*args)
+      # This is exclusive for a project
+      def union_between(relation_or_where_arg_1,relation_or_where_arg_2,*args)
+        other_1  = relation_or_where_arg_1 if args.size == 0 && Relation === relation_or_where_arg_1
+        other_2  = relation_or_where_arg_2 if args.size == 0 && Relation === relation_or_where_arg_2
+        other_1 ||= @klass.where(relation_or_where_arg_1, *args)
+        other_2 ||= @klass.where(relation_or_where_arg_2, *args)
+
+        # Postgres allows ORDER BY in the UNION subqueries if each subquery is surrounded by parenthesis
+        # but SQLite does not allow parens around the subqueries; you will have to explicitly do `relation.reorder(nil)` in SQLite
+        if Arel::Visitors::SQLite === self.visitor
+          one, two, three = self.ast, other_1.ast, other_2.ast
+        else
+          one, two, three = Arel::Nodes::Grouping.new(self.ast), Arel::Nodes::Grouping.new(other_1.ast), Arel::Nodes::Grouping.new(other_2.ast)
+        end
+
+        union = Arel::Nodes::Union.new(one, Arel::Nodes::Union.new(two,three))
+
+        # Turns out, I needed to change it even more, :P
+        from = Arel::Nodes::TableAlias.new(
+            union,
+            Arel::Nodes::SqlLiteral.new(@klass.arel_table.name + "_union, " + @klass.arel_table.name)
+        )
+
+        relation = @klass.unscoped.select(@klass.arel_table.name + ".*, SUM(match_prc) AS match_prc").from(from)
+        relation.bind_values = self.bind_values + other_1.bind_values + other_2.bind_values
+        relation
+      end
+
+      def union(relation_or_where_arg,*args)
         other   = relation_or_where_arg if args.size == 0 && Relation === relation_or_where_arg
         other ||= @klass.where(relation_or_where_arg, *args)
 
@@ -15,20 +43,11 @@ module ActiveRecord
           left, right = Arel::Nodes::Grouping.new(self.ast), Arel::Nodes::Grouping.new(other.ast)
         end
 
-        union = Arel::Nodes::Union.new(left, right)
-
-        # Added a little work around to separate the query alias from the table name
-        if separated
-          from = Arel::Nodes::TableAlias.new(
-              union,
-              Arel::Nodes::SqlLiteral.new(@klass.arel_table.name + "_union, " + @klass.arel_table.name)
-          )
-        else
-          from = Arel::Nodes::TableAlias.new(
-              union,
-              Arel::Nodes::SqlLiteral.new(@klass.arel_table.name)
-          )
-        end
+        union = Arel::Nodes::Union.new(left, Arel::Nodes::Union.new(left,right))
+        from = Arel::Nodes::TableAlias.new(
+            union,
+            Arel::Nodes::SqlLiteral.new(@klass.arel_table.name + "_union, " + @klass.arel_table.name)
+        )
 
         relation = @klass.unscoped.from(from)
         relation.bind_values = self.bind_values + other.bind_values
