@@ -98,6 +98,21 @@ SELECT "posts".* FROM (
 ) posts
 ```
 
+#Mackaber's addition:
+I noticed brianhempel, used the table name for the query alias when the union is made, however, for my projects I had to change it, because I need to write a query to select the values from the table and the subquery, so I added a little hack to separate it from the table name using union(relation_or_where_arg,separated).
+
+```ruby
+# the current user's (draft) posts and all published posts from anyone
+current_user.posts.union(Post.published,true)
+```
+```sql
+SELECT "posts".* FROM (
+  SELECT "posts".* FROM "posts"  WHERE "posts"."user_id" = ?
+  UNION
+  SELECT "posts".* FROM "posts"  WHERE (published_at < '2014-07-19 16:04:21.918366')
+) posts_union, posts
+```
+
 <a name="footnote-1"></a>[1] Note: the `?` in the SQL is bound to the correct value when ActiveRecord executes the query. Also, the SQL examples here were generated for a SQLite database. The syntax generated for other databases may vary slightly.
 
 ## Caveats

@@ -1,7 +1,7 @@
 module ActiveRecord
   class Relation
     module Union
-      def union(relation_or_where_arg, *args)
+      def union(relation_or_where_arg,separated = false,*args)
         other   = relation_or_where_arg if args.size == 0 && Relation === relation_or_where_arg
         other ||= @klass.where(relation_or_where_arg, *args)
 
@@ -16,10 +16,19 @@ module ActiveRecord
         end
 
         union = Arel::Nodes::Union.new(left, right)
-        from = Arel::Nodes::TableAlias.new(
-          union,
-          Arel::Nodes::SqlLiteral.new(@klass.arel_table.name)
-        )
+
+        # Added a little work around to separate the query alias from the table name
+        if separated
+          from = Arel::Nodes::TableAlias.new(
+              union,
+              Arel::Nodes::SqlLiteral.new(@klass.arel_table.name + "_union, " + @klass.arel_table.name)
+          )
+        else
+          from = Arel::Nodes::TableAlias.new(
+              union,
+              Arel::Nodes::SqlLiteral.new(@klass.arel_table.name)
+          )
+        end
 
         relation = @klass.unscoped.from(from)
         relation.bind_values = self.bind_values + other.bind_values
