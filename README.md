@@ -12,7 +12,7 @@ If you find yourself writing `pluck(:id)` and then feeding that into another que
 Add this line to your application's Gemfile:
 
 ```ruby
-gem 'active_record_union'
+gem 'active_record_union', github: 'mackaber/active_record_union'
 ```
 
 And then execute:
@@ -21,7 +21,9 @@ And then execute:
 
 Or install it yourself as:
 
-    $ gem install active_record_union
+    $ git clone https://github.com/Mackaber/active_record_union.git
+    $ cd active_record_union && gem build active_record_union.gemspec
+    $ gem install active_record_union-1.0.10b.gem
 
 ## Usage
 
